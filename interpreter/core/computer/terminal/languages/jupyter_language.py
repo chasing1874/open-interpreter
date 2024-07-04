@@ -50,6 +50,13 @@ class JupyterLanguage(BaseLanguage):
 import matplotlib
 matplotlib.use('{backend}')
         """.strip()
+
+        # Use Inline actually, it's better I think
+        code = """
+%matplotlib inline
+import matplotlib.pyplot as plt
+""".strip()
+
         for _ in self.run(code):
             pass
 
@@ -229,6 +236,13 @@ matplotlib.use('{backend}')
 
     def _capture_output(self, message_queue):
         while True:
+            # For async usage
+            if (
+                hasattr(self.computer.interpreter, "stop_event")
+                and self.computer.interpreter.stop_event.is_set()
+            ):
+                break
+
             if self.listener_thread:
                 try:
                     output = message_queue.get(timeout=0.1)

@@ -4,10 +4,12 @@ os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
 import litellm
 
 litellm.suppress_debug_info = True
+import json
 import subprocess
 import time
 import uuid
 
+import requests
 import tokentrim as tt
 
 from ...terminal_interface.utils.display_markdown_message import (
@@ -48,6 +50,7 @@ class Llm:
         self.api_base = None
         self.api_key = None
         self.api_version = None
+        self._is_loaded = False
 
         # Budget manager powered by LiteLLM
         self.max_budget = None
@@ -60,6 +63,16 @@ class Llm:
 
         And then processing its output, whether it's a function or non function calling model, into LMC format.
         """
+
+        if (
+            self.max_tokens is not None
+            and self.context_window is not None
+            and self.max_tokens > self.context_window
+        ):
+            print(
+                "Warning: max_tokens is larger than context_window. Setting max_tokens to be 0.2 times the context_window."
+            )
+            self.max_tokens = int(0.2 * self.context_window)
 
         # Assertions
         assert (
@@ -134,19 +147,28 @@ class Llm:
                         precursor = "Imagine I have just shown you an image with this description: "
                         postcursor = ""
 
-                    image_description = self.vision_renderer(lmc=img_msg)
+                    try:
+                        image_description = self.vision_renderer(lmc=img_msg)
+                        ocr = self.interpreter.computer.vision.ocr(lmc=img_msg)
 
-                    # It would be nice to format this as a message to the user and display it like: "I see: image_description"
+                        # It would be nice to format this as a message to the user and display it like: "I see: image_description"
 
-                    img_msg["content"] = (
-                        precursor
-                        + image_description
-                        + "\n---\nThe image contains the following text exactly, which may or may not be relevant (if it's not relevant, ignore this): '''\n"
-                        + self.interpreter.computer.vision.ocr(lmc=img_msg)
-                        + "\n'''"
-                        + postcursor
-                    )
-                    img_msg["format"] = "description"
+                        img_msg["content"] = (
+                            precursor
+                            + image_description
+                            + "\n---\nI've OCR'd the image, this is the result (this may or may not be relevant. If it's not relevant, ignore this): '''\n"
+                            + ocr
+                            + "\n'''"
+                            + postcursor
+                        )
+                        img_msg["format"] = "description"
+
+                    except ImportError:
+                        print(
+                            "\nTo use local vision, run `pip install 'open-interpreter[local]'`.\n"
+                        )
+                        img_msg["format"] = "description"
+                        img_msg["content"] = ""
 
         # Convert to OpenAI messages format
         messages = convert_to_openai_messages(
@@ -188,7 +210,7 @@ class Llm:
                         if self.interpreter.in_terminal_interface:
                             display_markdown_message(
                                 """
-**We were unable to determine the context window of this model.** Defaulting to 3000.
+**We were unable to determine the context window of this model.** Defaulting to 8000.
 
 If your model can handle more, run `interpreter --context_window {token limit} --max_tokens {max tokens per response}`.
 
@@ -198,7 +220,7 @@ Continuing...
                         else:
                             display_markdown_message(
                                 """
-**We were unable to determine the context window of this model.** Defaulting to 3000.
+**We were unable to determine the context window of this model.** Defaulting to 8000.
 
 If your model can handle more, run `self.context_window = {token limit}`.
 
@@ -208,7 +230,7 @@ Continuing...
                             """
                             )
                     messages = tt.trim(
-                        messages, system_message=system_message, max_tokens=3000
+                        messages, system_message=system_message, max_tokens=8000
                     )
         except:
             # If we're trimming messages, this won't work.
@@ -264,10 +286,21 @@ Continuing...
         else:
             yield from run_text_llm(self, params)
 
-    def load(self):
-        if self.model.startswith("ollama/"):
-            # WOAH we should also hit up ollama and set max_tokens and context_window based on the LLM. I think they let u do that
+    # If you change model, set _is_loaded to false
+    @property
+    def model(self):
+        return self._model
 
+    @model.setter
+    def model(self, value):
+        self._model = value
+        self._is_loaded = False
+
+    def load(self):
+        if self._is_loaded:
+            return
+
+        if self.model.startswith("ollama/"):
             model_name = self.model.replace("ollama/", "")
             try:
                 # List out all downloaded ollama models. Will fail if ollama isn't installed
@@ -292,17 +325,36 @@ Continuing...
                 self.interpreter.display_message(f"\nDownloading {model_name}...\n")
                 subprocess.run(["ollama", "pull", model_name], check=True)
 
+            # Get context window if not set
+            if self.context_window == None:
+                response = requests.post(
+                    "http://localhost:11434/api/show", json={"name": model_name}
+                )
+                model_info = response.json().get("model_info", {})
+                context_length = None
+                for key in model_info:
+                    if "context_length" in key:
+                        context_length = model_info[key]
+                        break
+                if context_length is not None:
+                    self.context_window = context_length
+            if self.max_tokens == None:
+                if self.context_window != None:
+                    self.max_tokens = int(self.context_window * 0.2)
+
             # Send a ping, which will actually load the model
-            print(f"\nLoading {model_name}...\n")
+            print(f"Loading {model_name}...\n")
 
             old_max_tokens = self.max_tokens
             self.max_tokens = 1
             self.interpreter.computer.ai.chat("ping")
             self.max_tokens = old_max_tokens
 
-            # self.interpreter.display_message("\n*Model loaded.*\n")
+            self.interpreter.display_message("*Model loaded.*\n")
 
         # Validate LLM should be moved here!!
+
+        self._is_loaded = True
 
 
 def fixed_litellm_completions(**params):

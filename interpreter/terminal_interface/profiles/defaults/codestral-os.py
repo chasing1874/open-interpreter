@@ -4,6 +4,37 @@ This is an Open Interpreter profile. It configures Open Interpreter to run `llam
 Images sent to the model will be described with `moondream`. The model will be instructed how to control your mouse and keyboard.
 """
 
+import pkg_resources
+
+REQUIRED_PACKAGES = [
+    "opencv-python",
+    "pyautogui",
+    "plyer",
+    "pywinctl",
+    "pytesseract",
+    "sentence-transformers",
+    "ipywidgets",
+    "torch",
+    "timm",
+    "screeninfo",
+]
+
+missing_packages = []
+
+for package in REQUIRED_PACKAGES:
+    try:
+        dist = pkg_resources.get_distribution(package)
+    except pkg_resources.DistributionNotFound:
+        missing_packages.append(package)
+
+if missing_packages:
+    print(
+        '{} isn\'t installed. Please run `pip install "open-interpreter[os]"` to install all required packages for OS mode'.format(
+            ", ".join(missing_packages)
+        )
+    )
+
+
 from interpreter import interpreter
 
 interpreter.system_message = """You are an AI assistant that writes markdown code snippets to answer the user's request. You speak very concisely and quickly, you say nothing irrelevant to the user's request. For example:
@@ -80,6 +111,10 @@ interpreter.computer.system_message = ""  # The default will explain how to use 
 # Misc settings
 interpreter.auto_run = True
 interpreter.offline = True
+interpreter.os = True
+
+# Vision setup
+interpreter.computer.vision.load()
 
 # Final message
 interpreter.display_message(
@@ -88,6 +123,4 @@ interpreter.display_message(
 interpreter.display_message(
     "\n**Note:** Codestral is a relatively weak model, so OS mode is highly experimental. Try using a more powerful model for OS mode with `interpreter --os`."
 )
-interpreter.display_message(
-    "> Model set to `codestral`, experimental OS control enabled"
-)
+interpreter.display_message("> Experimental OS control enabled.")

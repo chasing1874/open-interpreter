@@ -6,7 +6,7 @@ from random import randint
 import pytest
 
 #####
-from interpreter import OpenInterpreter
+from interpreter import AsyncInterpreter, OpenInterpreter
 from interpreter.terminal_interface.utils.count_tokens import (
     count_messages_tokens,
     count_tokens,
@@ -20,6 +20,182 @@ import time
 
 import pytest
 from websocket import create_connection
+
+
+@pytest.mark.skip(reason="Requires uvicorn, which we don't require by default")
+def test_server():
+    # Start the server in a new thread
+    async_interpreter = AsyncInterpreter()
+    server_thread = threading.Thread(target=async_interpreter.server.run)
+    server_thread.start()
+
+    # Give the server a moment to start
+    time.sleep(2)
+
+    import asyncio
+    import json
+
+    import requests
+    import websockets
+
+    async def test_fastapi_server():
+        import asyncio
+
+        async with websockets.connect("ws://localhost:8000/") as websocket:
+            # Connect to the websocket
+            print("Connected to WebSocket")
+
+            # Sending POST request
+            post_url = "http://localhost:8000/settings"
+            settings = {
+                "model": "gpt-4o",
+                "messages": [
+                    {
+                        "role": "user",
+                        "type": "message",
+                        "content": "The secret word is 'crunk'.",
+                    },
+                    {"role": "assistant", "type": "message", "content": "Understood."},
+                ],
+                "custom_instructions": "",
+                "auto_run": True,
+            }
+            response = requests.post(post_url, json=settings)
+            print("POST request sent, response:", response.json())
+
+            # Sending messages via WebSocket
+            await websocket.send(
+                json.dumps({"role": "user", "type": "message", "start": True})
+            )
+            await websocket.send(
+                json.dumps(
+                    {
+                        "role": "user",
+                        "type": "message",
+                        "content": "What's the secret word?",
+                    }
+                )
+            )
+            await websocket.send(
+                json.dumps({"role": "user", "type": "message", "end": True})
+            )
+            print("WebSocket chunks sent")
+
+            # Wait for a specific response
+            accumulated_content = ""
+            while True:
+                message = await websocket.recv()
+                message_data = json.loads(message)
+                print("Received from WebSocket:", message_data)
+                if message_data.get("content"):
+                    accumulated_content += message_data.get("content")
+                if message_data == {
+                    "role": "server",
+                    "type": "status",
+                    "content": "complete",
+                }:
+                    print("Received expected message from server")
+                    break
+
+            assert "crunk" in accumulated_content
+
+            # Send another POST request
+            post_url = "http://localhost:8000/settings"
+            settings = {
+                "model": "gpt-4o",
+                "messages": [
+                    {
+                        "role": "user",
+                        "type": "message",
+                        "content": "The secret word is 'barloney'.",
+                    },
+                    {"role": "assistant", "type": "message", "content": "Understood."},
+                ],
+                "custom_instructions": "",
+                "auto_run": True,
+            }
+            response = requests.post(post_url, json=settings)
+            print("POST request sent, response:", response.json())
+
+            # Sending messages via WebSocket
+            await websocket.send(
+                json.dumps({"role": "user", "type": "message", "start": True})
+            )
+            await websocket.send(
+                json.dumps(
+                    {
+                        "role": "user",
+                        "type": "message",
+                        "content": "What's the secret word?",
+                    }
+                )
+            )
+            await websocket.send(
+                json.dumps({"role": "user", "type": "message", "end": True})
+            )
+            print("WebSocket chunks sent")
+
+            # Wait for a specific response
+            accumulated_content = ""
+            while True:
+                message = await websocket.recv()
+                message_data = json.loads(message)
+                print("Received from WebSocket:", message_data)
+                if message_data.get("content"):
+                    accumulated_content += message_data.get("content")
+                if message_data == {
+                    "role": "server",
+                    "type": "status",
+                    "content": "complete",
+                }:
+                    print("Received expected message from server")
+                    break
+
+            assert "barloney" in accumulated_content
+
+    # Get the current event loop and run the test function
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(test_fastapi_server())
+
+    # Stop the server
+    async_interpreter.server.uvicorn_server.should_exit = True
+
+    # Wait for the server thread to finish
+    server_thread.join(timeout=1)
+
+
+@pytest.mark.skip(reason="Mac only")
+def test_sms():
+    sms = interpreter.computer.sms
+
+    # Get the last 5 messages
+    messages = sms.get(limit=5)
+    print(messages)
+
+    # Search messages for a substring
+    search_results = sms.get(substring="i love you", limit=100)
+    print(search_results)
+
+    assert False
+
+
+@pytest.mark.skip(reason="Mac only")
+def test_pytes():
+    import os
+
+    desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
+    files_on_desktop = [f for f in os.listdir(desktop_path) if f.endswith(".png")]
+    if files_on_desktop:
+        first_file = files_on_desktop[0]
+        first_file_path = os.path.join(desktop_path, first_file)
+        print(first_file_path)
+        ocr = interpreter.computer.vision.ocr(path=first_file_path)
+        print(ocr)
+        print("what")
+    else:
+        print("No files found on Desktop.")
+
+    assert False
 
 
 def test_ai_chat():
@@ -108,147 +284,6 @@ def test_generator():
         assert assistant_message_found, "No assistant message was found"
         assert console_output_found, "No console output was found"
         assert active_line_found, "No active line was found"
-
-
-@pytest.mark.skip(reason="Requires uvicorn, which we don't require by default")
-def test_server():
-    # Start the server in a new thread
-    server_thread = threading.Thread(target=interpreter.server)
-    server_thread.start()
-
-    # Give the server a moment to start
-    time.sleep(2)
-
-    import asyncio
-    import json
-
-    import requests
-    import websockets
-
-    async def test_fastapi_server():
-        import asyncio
-
-        async with websockets.connect("ws://localhost:8000/") as websocket:
-            # Connect to the websocket
-            print("Connected to WebSocket")
-
-            # Sending POST request
-            post_url = "http://localhost:8000/settings"
-            settings = {
-                "model": "gpt-4o",
-                "messages": [
-                    {
-                        "role": "user",
-                        "type": "message",
-                        "content": "The secret word is 'crunk'.",
-                    },
-                    {"role": "assistant", "type": "message", "content": "Understood."},
-                ],
-                "custom_instructions": "",
-                "auto_run": True,
-            }
-            response = requests.post(post_url, json=settings)
-            print("POST request sent, response:", response.json())
-
-            # Sending messages via WebSocket
-            await websocket.send(
-                json.dumps({"role": "user", "type": "message", "start": True})
-            )
-            await websocket.send(
-                json.dumps(
-                    {
-                        "role": "user",
-                        "type": "message",
-                        "content": "What's the secret word?",
-                    }
-                )
-            )
-            await websocket.send(
-                json.dumps({"role": "user", "type": "message", "end": True})
-            )
-            print("WebSocket chunks sent")
-
-            # Wait for a specific response
-            accumulated_content = ""
-            while True:
-                message = await websocket.recv()
-                message_data = json.loads(message)
-                print("Received from WebSocket:", message_data)
-                if message_data.get("content"):
-                    accumulated_content += message_data.get("content")
-                if message_data == {
-                    "role": "server",
-                    "type": "completion",
-                    "content": "DONE",
-                }:
-                    print("Received expected message from server")
-                    break
-
-            assert "crunk" in accumulated_content
-
-            # Send another POST request
-            post_url = "http://localhost:8000/settings"
-            settings = {
-                "model": "gpt-4o",
-                "messages": [
-                    {
-                        "role": "user",
-                        "type": "message",
-                        "content": "The secret word is 'barloney'.",
-                    },
-                    {"role": "assistant", "type": "message", "content": "Understood."},
-                ],
-                "custom_instructions": "",
-                "auto_run": True,
-            }
-            response = requests.post(post_url, json=settings)
-            print("POST request sent, response:", response.json())
-
-            # Sending messages via WebSocket
-            await websocket.send(
-                json.dumps({"role": "user", "type": "message", "start": True})
-            )
-            await websocket.send(
-                json.dumps(
-                    {
-                        "role": "user",
-                        "type": "message",
-                        "content": "What's the secret word?",
-                    }
-                )
-            )
-            await websocket.send(
-                json.dumps({"role": "user", "type": "message", "end": True})
-            )
-            print("WebSocket chunks sent")
-
-            # Wait for a specific response
-            accumulated_content = ""
-            while True:
-                message = await websocket.recv()
-                message_data = json.loads(message)
-                print("Received from WebSocket:", message_data)
-                if message_data.get("content"):
-                    accumulated_content += message_data.get("content")
-                if message_data == {
-                    "role": "server",
-                    "type": "completion",
-                    "content": "DONE",
-                }:
-                    print("Received expected message from server")
-                    break
-
-            assert "barloney" in accumulated_content
-
-    # Get the current event loop and run the test function
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(test_fastapi_server())
-
-    # Stop the server
-    interpreter.uvicorn_server.should_exit = True
-
-    # Wait for the server thread to finish
-    server_thread.join(timeout=1)
 
 
 @pytest.mark.skip(reason="Requires open-interpreter[local]")
@@ -627,9 +662,9 @@ def test_vision():
     ]
 
     interpreter.llm.supports_vision = True
-    interpreter.llm.model = "gpt-4-vision-preview"
+    interpreter.llm.model = "gpt-4o"
     interpreter.system_message += "\nThe user will show you an image of the code you write. You can view images directly.\n\nFor HTML: This will be run STATELESSLY. You may NEVER write '<!-- previous code here... --!>' or `<!-- header will go here -->` or anything like that. It is CRITICAL TO NEVER WRITE PLACEHOLDERS. Placeholders will BREAK it. You must write the FULL HTML CODE EVERY TIME. Therefore you cannot write HTML piecemeal—write all the HTML, CSS, and possibly Javascript **in one step, in one code block**. The user will help you review it visually.\nIf the user submits a filepath, you will also see the image. The filepath and user image will both be in the user's message.\n\nIf you use `plt.show()`, the resulting image will be sent to you. However, if you use `PIL.Image.show()`, the resulting image will NOT be sent to you."
-    interpreter.llm.supports_functions = False
+    interpreter.llm.supports_functions = True
     interpreter.llm.context_window = 110000
     interpreter.llm.max_tokens = 4096
     interpreter.loop = True

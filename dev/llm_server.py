@@ -73,13 +73,13 @@ class OI_server:
         @app.post("/stream_chat")
         def stream_chat_endpoint(item: RequestModel):
 
-            base_path = '/Users/jiangziyou/github/dify/api/storage/'
+            base_path = '/root/code/dify/docker/volumes/app/storage/'
 
             file_paths = ''
             file_cnt = len(item.files)
             for file in item.files:
                 src_path = base_path + file['file_path']
-                dest_path = '/Users/jiangziyou/mnt/data/' + file['sheet_name']
+                dest_path = '/mnt/data/' + file['sheet_name']
                 shutil.copyfile(src_path, dest_path)
                 file_paths += f'{dest_path} \t'
             print(f"file_paths: {file_paths}")
@@ -125,7 +125,7 @@ class OI_server:
                 return 'OI not found'
             OI.chat()
         
-        config = Config(app, host="0.0.0.0", port=8000) 
+        config = Config(app, host="0.0.0.0", port=8090) 
         server = Server(config)
         server.run()
 

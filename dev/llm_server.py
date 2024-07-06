@@ -63,6 +63,29 @@ class OI_server:
             self.OI_session[requset.conversation_id] = new_OI
             self.conversation_id = requset.conversation_id
         return self.OI_session[requset.conversation_id]
+    
+    def _get_src_path(self, file: dict):
+        if self.system == 'Windows':
+            storage_path = 'D:\\code\\dify\\api\\storage\\'
+            return os.path.join(storage_path, file['file_path'].replace('/', '\\'))
+        elif self.system == 'Macos':
+            storage_path = '/Users/jiangziyou/github/dify/api/storage/'
+            return os.path.join(storage_path, file['file_path'])
+        else:
+            storage_path = '/root/code/dify/docker/volumes/app/storage/'
+            return os.path.join(storage_path, file['file_path'])
+    
+    def _get_dest_path(self, file: dict):
+        if self.system == 'Windows':
+            tmp_path = 'D:\\mnt\\data\\'
+            return os.path.join(tmp_path, file['sheet_name'].replace('/', '\\'))
+        elif self.system == 'Macos':
+            tmp_path = '/Users/jiangziyou/mnt/data/'
+            return os.path.join(tmp_path, file['sheet_name'])
+        else:
+            tmp_path = '/mnt/data/'
+            return os.path.join(tmp_path, file['sheet_name'])
+        
 
     def run(self):
 
@@ -80,23 +103,12 @@ class OI_server:
         def stream_chat_endpoint(item: RequestModel):
 
             print('os system: ', self.system)
-
-            if self.system == 'Windows':
-                storage_path = 'D:\\code\\dify\\api\\storage\\'
-                tmp_path = 'D:\\mnt\\data\\'
-            elif self.system == 'Macos':
-                storage_path = '/Users/jiangziyou/github/dify/api/storage/'
-                tmp_path = '/Users/jiangziyou/mnt/data/'
-            else:
-                storage_path = '/root/code/dify/docker/volumes/app/storage/'
-                tmp_path = '/mnt/data/'
-           
-
+            
             file_paths = ''
             file_cnt = len(item.files)
             for file in item.files:
-                src_path = os.path.join(storage_path, file['file_path'].replace('/', '\\'))
-                dest_path = os.path.join(tmp_path, file['sheet_name'].replace('/', '\\'))
+                src_path = self._get_src_path(file)
+                dest_path = self._get_dest_path(file)
                 print('src: ', src_path)
                 print('dest: ', dest_path)
                 shutil.copyfile(src_path, dest_path)

@@ -141,7 +141,7 @@ class OI_server:
                 return 'OI not found'
             OI.chat()
         
-        config = Config(app, host="0.0.0.0", port=8000) 
+        config = Config(app, host="0.0.0.0", port=8090) 
         server = Server(config)
         server.run()
 

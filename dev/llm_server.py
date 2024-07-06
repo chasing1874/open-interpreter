@@ -84,8 +84,11 @@ class OI_server:
             if self.system == 'Windows':
                 storage_path = 'D:\\code\\dify\\api\\storage\\'
                 tmp_path = 'D:\\mnt\\data\\'
-            else:
+            elif self.system == 'Macos':
                 storage_path = '/Users/jiangziyou/github/dify/api/storage/'
+                tmp_path = '/Users/jiangziyou/mnt/data/'
+            else:
+                storage_path = '/root/code/dify/docker/volumes/app/storage/'
                 tmp_path = '/mnt/data/'
            
 

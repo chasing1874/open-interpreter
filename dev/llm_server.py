@@ -4,7 +4,8 @@ from json import dumps, loads
 from typing import Any, Optional
 from fastapi import FastAPI, Response
 from fastapi.responses import JSONResponse, StreamingResponse
-import interpreter
+import os
+import platform
 from pydantic import BaseModel
 from interpreter.core.core import OpenInterpreter
 from utils.prompts import PROMPTS
@@ -28,6 +29,7 @@ class OI_server:
         self.conversation_id = ''
         self.app = FastAPI()
         self.OI_session: dict[str, OpenInterpreter] = {}
+        self.system = platform.system()
 
     def _OI_instance(self, requset: RequestModel) -> OpenInterpreter:
         print(f"requset.conversation_id: {requset.conversation_id}")
@@ -39,12 +41,16 @@ class OI_server:
             new_OI.auto_run = True
             new_OI.llm.context_window = 32000
             new_OI.llm.max_tokens=4000
-            # interpreter.conversation_filename=
             # interpreter.conversation_history=
             new_OI.llm.supports_vision=True
             new_OI.computer.emit_images=True
-            new_OI.system_message = PROMPTS.system_message_analyse
+            new_OI.system_message = PROMPTS.system_message_win
             new_OI.llm.model = "gpt-4o"
+            if self.system == 'Windows':
+                new_OI.conversation_filename='D:\\code\\open-interpreter\\dev\\conversations\\test.json'
+                new_OI.system_message = PROMPTS.system_message_win
+            else:
+                new_OI.system_message = PROMPTS.system_message_analyse
 
             # custom parameters
             new_OI.llm.model = requset.model_name
@@ -73,13 +79,23 @@ class OI_server:
         @app.post("/stream_chat")
         def stream_chat_endpoint(item: RequestModel):
 
-            base_path = '/Users/jiangziyou/github/dify/api/storage/'
+            print('os system: ', self.system)
+
+            if self.system == 'Windows':
+                storage_path = 'D:\\code\\dify\\api\\storage\\'
+                tmp_path = 'D:\\mnt\\data\\'
+            else:
+                storage_path = '/Users/jiangziyou/github/dify/api/storage/'
+                tmp_path = '/mnt/data/'
+           
 
             file_paths = ''
             file_cnt = len(item.files)
             for file in item.files:
-                src_path = base_path + file['file_path']
-                dest_path = '/Users/jiangziyou/mnt/data/' + file['sheet_name']
+                src_path = os.path.join(storage_path, file['file_path'].replace('/', '\\'))
+                dest_path = os.path.join(tmp_path, file['sheet_name'].replace('/', '\\'))
+                print('src: ', src_path)
+                print('dest: ', dest_path)
                 shutil.copyfile(src_path, dest_path)
                 file_paths += f'{dest_path} \t'
             print(f"file_paths: {file_paths}")

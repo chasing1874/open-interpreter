@@ -44,7 +44,6 @@ class OI_server:
             # interpreter.conversation_history=
             new_OI.llm.supports_vision=True
             new_OI.computer.emit_images=True
-            new_OI.system_message = PROMPTS.system_message_win
             new_OI.llm.model = "gpt-4o"
             if self.system == 'Windows':
                 new_OI.conversation_filename='D:\\code\\open-interpreter\\dev\\conversations\\test.json'
@@ -55,8 +54,10 @@ class OI_server:
             # custom parameters
             new_OI.llm.model = requset.model_name
             new_OI.llm.api_key = requset.api_key
-            new_OI.system_message += requset.system_prompt
+            if requset.system_prompt:
+                new_OI.system_message = requset.system_prompt
             for key, value in requset.model_parameters.items():
+                print(f"model_parameters: key: {key}, value: {value}")
                 setattr(new_OI.llm, key, value)
 
             # save to session

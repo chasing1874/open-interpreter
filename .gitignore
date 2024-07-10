@@ -238,3 +238,4 @@ litellm_uuid.txt
 
 # Ignore log
 dev/conversations/
+dev/log/

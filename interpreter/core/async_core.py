@@ -14,6 +14,7 @@ try:
     import janus
     import uvicorn
     from fastapi import APIRouter, FastAPI, WebSocket
+    from fastapi.responses import PlainTextResponse
 except:
     # Server dependencies are not required by the main package.
     pass
@@ -36,8 +37,6 @@ class AsyncInterpreter(OpenInterpreter):
         Accumulates LMC chunks onto interpreter.messages.
         When it hits an "end" flag, calls interpreter.respond().
         """
-
-        print("Received:", chunk)
 
         if "start" in chunk:
             # If the user is starting something, the interpreter should stop.
@@ -106,7 +105,8 @@ class AsyncInterpreter(OpenInterpreter):
                             print("\n------------\n\n```" + chunk["format"], flush=True)
                         if "end" in chunk:
                             print("\n```\n\n------------\n\n", flush=True)
-                    print(chunk.get("content", ""), end="", flush=True)
+                    if chunk.get("format") != "active_line":
+                        print(chunk.get("content", ""), end="", flush=True)
 
                 self.output_queue.sync_q.put(chunk)
 
@@ -129,6 +129,9 @@ class AsyncInterpreter(OpenInterpreter):
         """
         Accumulates LMC chunks onto interpreter.messages.
         """
+        if type(chunk) == str:
+            chunk = json.loads(chunk)
+
         if type(chunk) == dict:
             if chunk.get("format") == "active_line":
                 # We don't do anything with these.
@@ -158,6 +161,112 @@ def create_router(async_interpreter):
     async def heartbeat():
         return {"status": "alive"}
 
+    @router.get("/")
+    async def home():
+        return PlainTextResponse(
+            """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Chat</title>
+            </head>
+            <body>
+                <form action="" onsubmit="sendMessage(event)">
+                    <textarea id="messageInput" rows="10" cols="50" autocomplete="off"></textarea>
+                    <button>Send</button>
+                </form>
+                <button id="approveCodeButton">Approve Code</button>
+                <div id="messages"></div>
+                <script>
+                    var ws = new WebSocket("ws://"""
+            + async_interpreter.server.host
+            + ":"
+            + str(async_interpreter.server.port)
+            + """/");
+                    var lastMessageElement = null;
+                    ws.onmessage = function(event) {
+                        if (lastMessageElement == null) {
+                            lastMessageElement = document.createElement('p');
+                            document.getElementById('messages').appendChild(lastMessageElement);
+                            lastMessageElement.innerHTML = "<br>"
+                        }
+                        var eventData = JSON.parse(event.data);
+
+                        if ((eventData.role == "assistant" && eventData.type == "message" && eventData.content) ||
+                            (eventData.role == "computer" && eventData.type == "console" && eventData.format == "output" && eventData.content) ||
+                            (eventData.role == "assistant" && eventData.type == "code" && eventData.content)) {
+                            lastMessageElement.innerHTML += eventData.content;
+                        } else {
+                            lastMessageElement.innerHTML += "<br><br>" + JSON.stringify(eventData) + "<br><br>";
+                        }
+                    };
+                    function sendMessage(event) {
+                        event.preventDefault();
+                        var input = document.getElementById("messageInput");
+                        var message = input.value;
+                        if (message.startsWith('{') && message.endsWith('}')) {
+                            message = JSON.stringify(JSON.parse(message));
+                            ws.send(message);
+                        } else {
+                            var startMessageBlock = {
+                                "role": "user",
+                                "type": "message",
+                                "start": true
+                            };
+                            ws.send(JSON.stringify(startMessageBlock));
+
+                            var messageBlock = {
+                                "role": "user",
+                                "type": "message",
+                                "content": message
+                            };
+                            ws.send(JSON.stringify(messageBlock));
+
+                            var endMessageBlock = {
+                                "role": "user",
+                                "type": "message",
+                                "end": true
+                            };
+                            ws.send(JSON.stringify(endMessageBlock));
+                        }
+                        var userMessageElement = document.createElement('p');
+                        userMessageElement.innerHTML = '<b>' + input.value + '</b><br>';
+                        document.getElementById('messages').appendChild(userMessageElement);
+                        lastMessageElement = document.createElement('p');
+                        document.getElementById('messages').appendChild(lastMessageElement);
+                        input.value = '';
+                    }
+                function approveCode() {
+                    var startCommandBlock = {
+                        "role": "user",
+                        "type": "command",
+                        "start": true
+                    };
+                    ws.send(JSON.stringify(startCommandBlock));
+
+                    var commandBlock = {
+                        "role": "user",
+                        "type": "command",
+                        "content": "go"
+                    };
+                    ws.send(JSON.stringify(commandBlock));
+
+                    var endCommandBlock = {
+                        "role": "user",
+                        "type": "command",
+                        "end": true
+                    };
+                    ws.send(JSON.stringify(endCommandBlock));
+                }
+
+                document.getElementById("approveCodeButton").addEventListener("click", approveCode);
+                </script>
+            </body>
+            </html>
+            """,
+            media_type="text/html",
+        )
+
     @router.websocket("/")
     async def websocket_endpoint(websocket: WebSocket):
         await websocket.accept()
@@ -167,6 +276,8 @@ def create_router(async_interpreter):
                 while True:
                     try:
                         data = await websocket.receive()
+
+                        print("Received:", data)
 
                         if data.get("type") == "websocket.receive" and "text" in data:
                             data = json.loads(data["text"])
@@ -194,13 +305,30 @@ def create_router(async_interpreter):
                 while True:
                     try:
                         output = await async_interpreter.output()
+                        # print("Attempting to send the following output:", output)
 
-                        print("SENDING", output)
-
-                        if isinstance(output, bytes):
-                            await websocket.send_bytes(output)
+                        for attempt in range(100):
+                            try:
+                                if isinstance(output, bytes):
+                                    await websocket.send_bytes(output)
+                                else:
+                                    await websocket.send_text(json.dumps(output))
+                                # print("Output sent successfully. Output was:", output)
+                                break
+                            except Exception as e:
+                                print(
+                                    "Failed to send output on attempt number:",
+                                    attempt + 1,
+                                    ". Output was:",
+                                    output,
+                                )
+                                print("Error:", str(e))
+                                await asyncio.sleep(0.05)
                         else:
-                            await websocket.send_text(json.dumps(output))
+                            raise Exception(
+                                "Failed to send after 100 attempts. Output was:",
+                                str(output),
+                            )
                     except Exception as e:
                         error = traceback.format_exc() + "\n" + str(e)
                         error_message = {

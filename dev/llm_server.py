@@ -128,7 +128,6 @@ class OI_server:
 
             def event_stream():
                 for chunk in OI.chat(join_prompt, display=False, stream=True):
-                    print(f"chunk: {chunk}")
                     chunk_json = dumps(chunk)
                     print(f"chunk_json: {chunk_json}")
                     yield f"data: {chunk_json}\r\n"

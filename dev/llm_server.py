@@ -25,7 +25,6 @@ class RequestModel(BaseModel):
 
 class OI_server:
     def __init__(self):
-        # self.interpreter = interpreter
         self.conversation_id = ''
         self.app = FastAPI()
         self.OI_session: dict[str, OpenInterpreter] = {}
@@ -54,8 +53,6 @@ class OI_server:
             # custom parameters
             new_OI.llm.model = requset.model_name
             new_OI.llm.api_key = requset.api_key
-            if requset.system_prompt:
-                new_OI.system_message = requset.system_prompt
             for key, value in requset.model_parameters.items():
                 print(f"model_parameters: key: {key}, value: {value}")
                 setattr(new_OI.llm, key, value)
@@ -64,6 +61,11 @@ class OI_server:
             self.OI_session[requset.conversation_id] = new_OI
             self.conversation_id = requset.conversation_id
         return self.OI_session[requset.conversation_id]
+    
+    def _get_default_system_message(self):
+        if self.system == 'Windows':
+            return PROMPTS.system_message_win
+        return PROMPTS.system_message_analyse
     
     def _get_src_path(self, file: dict):
         if self.system == 'Windows':
@@ -102,9 +104,6 @@ class OI_server:
 
         @app.post("/stream_chat")
         def stream_chat_endpoint(item: RequestModel):
-
-            print('os system: ', self.system)
-            
             file_paths = ''
             file_cnt = len(item.files)
             for file in item.files:
@@ -123,13 +122,14 @@ class OI_server:
             print(join_prompt)
 
             OI = self._OI_instance(item)
-            print(OI)
-            print('OI.messages:', OI.messages)
+            if item.system_prompt:
+                OI.system_message = self._get_default_system_message() + item.system_prompt
+                print(f'cur system_message: ----------------------------↓↓↓------------------------ \n  {OI.system_message}')
 
             def event_stream():
                 for chunk in OI.chat(join_prompt, display=False, stream=True):
                     chunk_json = dumps(chunk)
-                    print(f"chunk_json: {chunk_json}")
+                    print(f'chunk_json: {chunk_json}')
                     yield f"data: {chunk_json}\r\n"
 
             return StreamingResponse(event_stream(), media_type="text/event-stream")

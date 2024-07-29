@@ -7,13 +7,14 @@ from fastapi.responses import JSONResponse, StreamingResponse
 import os
 import platform
 from pydantic import BaseModel
+import shortuuid
 from interpreter.core.core import OpenInterpreter
 from utils.prompts import PROMPTS
 from uvicorn import Config, Server
 import shutil
 
 class RequestModel(BaseModel):
-    prompt: str
+    prompt: str | list[dict]
     files: list[dict]
     system_prompt: str
     stop: Optional[list[str]]
@@ -32,6 +33,8 @@ class OI_server:
 
     def _OI_instance(self, requset: RequestModel) -> OpenInterpreter:
         print(f"requset.conversation_id: {requset.conversation_id}")
+        if not requset.conversation_id or requset.conversation_id == '':
+            self.conversation_id = shortuuid.uuid()
         if requset.conversation_id not in self.OI_session:
             new_OI = OpenInterpreter()
 
@@ -43,6 +46,7 @@ class OI_server:
             # interpreter.conversation_history=
             new_OI.llm.supports_vision=True
             new_OI.computer.emit_images=True
+            new_OI.disable_telemetry = True
             new_OI.llm.model = "gpt-4o"
             if self.system == 'Windows':
                 new_OI.conversation_filename='D:\\code\\open-interpreter\\dev\\conversations\\test.json'
@@ -104,6 +108,8 @@ class OI_server:
 
         @app.post("/stream_chat")
         def stream_chat_endpoint(item: RequestModel):
+            print(f"item.prompt: {item.prompt}")
+
             file_paths = ''
             file_cnt = len(item.files)
             for file in item.files:

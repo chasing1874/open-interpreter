@@ -327,6 +327,7 @@ class OI_server:
             user_id = payload.get("user_id")
             OI = self._OI_instance_4_user(payload)
             language, code, upload_file_name, upload_file_url = payload.get("language"), payload.get("code"), payload.get("upload_file_name"), payload.get("upload_file_url")
+            print(f'user_id: {user_id}, payload: {payload}')
             if not (language and code):
                 return {"error": "Both 'language' and 'code' are required."}, 400
             try:
@@ -341,7 +342,9 @@ class OI_server:
 
                 # Run the code
                 print(f"Running {language}:", code)
-                output = OI.computer.run(language, code)
+                print(f'OI: {OI}')
+                final_code = str(code)
+                output = OI.computer.run(language, code=final_code)
                 print("Output:", output)
 
                 # Get final state of the directory
@@ -355,12 +358,12 @@ class OI_server:
                     'result': {
                         'execution_state': 'success',
                         'final_output': output,
-                        'piclist': piclist,
-                        'filelist': filelist
+                        'pic_list': piclist,
+                        'file_list': filelist
                     }
                 }
             except Exception as e:
-                return {'code': 200, 'msg': str(e)}
+                return {'code': 500, 'msg': str(e)}
         
         @app.post("/test_run")
         async def test_run_code(requset: RequestModel):

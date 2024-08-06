@@ -16,12 +16,9 @@ from interpreter.core.core import OpenInterpreter
 from utils.prompts import PROMPTS
 from uvicorn import Config, Server
 import shutil
-from cacheout import Cache
+from cacheout import LRUCache
 
 logger = logging.getLogger(__name__)
-
-# 创建一个具有TTL的缓存，缓存时间为600秒（10分钟）
-cache = Cache(maxsize=1000, ttl=1800, timer=time.time)
 
 class ExcutionResult(BaseModel):
     execution_state: str
@@ -50,11 +47,23 @@ class RequestModel(BaseModel):
 
 class OI_server:
     def __init__(self):
+
+        def reset_OI(key, value, cause):
+            print(f"reset_OI: key: {key}, value: {value}, cause: {cause}")
+            value.reset()
+
         self.conversation_id = ''
-        self.app = FastAPI()
-        self.OI_session: Cache[str, OpenInterpreter] = Cache(maxsize=1000, ttl=1800, timer=time.time)
-        self.OI_session_4_user: Cache[str, OpenInterpreter] = Cache(maxsize=1000, ttl=1800, timer=time.time)
         self.system = platform.system()
+        self.app = FastAPI()
+        self.OI_session: LRUCache[str, OpenInterpreter] = LRUCache(maxsize=20, ttl=600, timer=time.time)
+        self.OI_session_4_user: LRUCache[str, OpenInterpreter] = LRUCache(maxsize=20, ttl=600, timer=time.time)
+        
+        self.OI_session.on_delete = reset_OI
+        self.OI_session.on_get = lambda key, value, exsits: self.OI_session.set(key, value) if exsits else None
+
+        self.OI_session_4_user.on_delete = reset_OI
+        self.OI_session_4_user.on_get = lambda key, value, exsits: self.OI_session_4_user.set(key, value) if exsits else None
+
 
     def _OI_instance_4_user(self, payload: Dict[str, Any]) -> OpenInterpreter:
         conversation_id = payload.get("conversation_id")
@@ -285,7 +294,8 @@ class OI_server:
             def event_stream():
                 for chunk in OI.chat(join_prompt, display=False, stream=True):
                     chunk_json = dumps(chunk)
-                    print(f'chunk_json: {chunk_json}')
+                    print(f'chunk: {chunk}')
+                    # print(f'chunk_json: {chunk_json}')
                     yield f"data: {chunk_json}\r\n"
 
             return StreamingResponse(event_stream(), media_type="text/event-stream")

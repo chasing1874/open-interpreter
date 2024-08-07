@@ -1,8 +1,8 @@
 # server.py
 
-from json import dumps, loads
+from json import dumps, load
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 import logging
 import requests
 import mimetypes
@@ -13,6 +13,7 @@ import platform
 from pydantic import BaseModel
 import shortuuid
 from interpreter.core.core import OpenInterpreter
+from interpreter.terminal_interface.utils.local_storage_path import get_storage_path
 from utils.prompts import PROMPTS
 from uvicorn import Config, Server
 import shutil
@@ -35,7 +36,7 @@ class ExcutionResponse(BaseModel):
 
 
 class RequestModel(BaseModel):
-    prompt: str | list[dict]
+    prompt: Union[str, list[Dict]]
     files: list[dict]
     system_prompt: str
     stop: Optional[list[str]]
@@ -108,15 +109,17 @@ class OI_server:
             new_OI.auto_run = True
             new_OI.llm.context_window = 32000
             new_OI.llm.max_tokens=4000
-            # interpreter.conversation_history=
+            new_OI.conversation_history=True
             new_OI.llm.supports_vision=True
             new_OI.computer.emit_images=True
             new_OI.disable_telemetry = True
+            new_OI.contribute_conversation = False
             new_OI.llm.model = "gpt-4o"
             if self.system == 'Windows':
                 new_OI.conversation_filename='D:\\code\\open-interpreter\\dev\\conversations\\test.json'
                 new_OI.system_message = PROMPTS.system_message_win
             else:
+                new_OI.conversation_filename = requset.conversation_id + '.json'
                 new_OI.system_message = PROMPTS.system_message_analyse
 
             # custom parameters
@@ -125,6 +128,14 @@ class OI_server:
             for key, value in requset.model_parameters.items():
                 print(f"model_parameters: key: {key}, value: {value}")
                 setattr(new_OI.llm, key, value)
+            
+            cur_conversation_path = os.path.join(get_storage_path("conversations"), requset.conversation_id + '.json')
+            print(f'cur_conversation_path: {cur_conversation_path}')
+            if os.path.exists(cur_conversation_path):
+                print(f'exsits path')
+                with open(cur_conversation_path, "r") as f:
+                    messages = load(f)
+                    new_OI.messages = messages
 
             # save to session
             # self.OI_session[requset.conversation_id] = new_OI
@@ -141,7 +152,7 @@ class OI_server:
         if self.system == 'Windows':
             storage_path = 'D:\\code\\dify\\api\\storage\\'
             return os.path.join(storage_path, file['file_path'].replace('/', '\\'))
-        elif self.system == 'Macos':
+        elif self.system == 'Darwin':
             storage_path = '/Users/jiangziyou/github/dify/api/storage/'
             return os.path.join(storage_path, file['file_path'])
         else:
@@ -152,7 +163,7 @@ class OI_server:
         if self.system == 'Windows':
             tmp_path = 'D:\\mnt\\data\\'
             return os.path.join(tmp_path, file['sheet_name'].replace('/', '\\'))
-        elif self.system == 'Macos':
+        elif self.system == 'Darwin':
             tmp_path = '/Users/jiangziyou/mnt/data/'
             return os.path.join(tmp_path, file['sheet_name'])
         else:
@@ -165,7 +176,7 @@ class OI_server:
             file_name = file_name + '.' + file_extension
         if self.system == 'Windows':
             base_dir = os.path.join(f"D:\\workspace\\{user_id}", "mnt", "data")
-        elif self.system == 'Macos':
+        elif self.system == 'Darwin':
             base_dir = os.path.join(f"/Users/jiangziyou/workspace/{user_id}", "mnt", "data")
         else:
             base_dir = os.path.join(f"/workspace/{user_id}", "mnt", "data")
@@ -215,7 +226,7 @@ class OI_server:
         base_dir = ''
         if self.system == 'Windows':
             base_dir = 'D:/workspace/'
-        elif self.system == 'Macos':
+        elif self.system == 'Darwin':
             base_dir = '/Users/jiangziyou/workspace/'
         else:
             base_dir = '/workspace/'

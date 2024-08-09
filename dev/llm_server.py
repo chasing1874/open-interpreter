@@ -12,12 +12,45 @@ import os
 import platform
 from pydantic import BaseModel
 import shortuuid
+from extensions import ext_storage
 from interpreter.core.core import OpenInterpreter
 from interpreter.terminal_interface.utils.local_storage_path import get_storage_path
+from services.file_service import FileService
+from shuling_app import ShulingApp
 from utils.prompts import PROMPTS
 from uvicorn import Config, Server
 import shutil
 from cacheout import LRUCache
+from urllib.parse import urlparse
+from configs import shuling_config
+
+def initialize_extensions(app):
+    # Since the application instance is now created, pass it to each FastaAi
+    # extension instance to bind it to the Flask application instance (app)
+    ext_storage.init_app(app)
+
+def create_app_with_config() -> FastAPI:
+    """
+    create a raw fastApi app
+    with configs loaded from .env file
+    """
+    sl_app = ShulingApp()
+    sl_app.config = shuling_config.model_dump()
+    print(f'config: {sl_app.config}')
+
+    print(f'config: {shuling_config.model_config}')
+
+    # populate configs into system environment variables
+    for key, value in sl_app.config.items():
+        if isinstance(value, str):
+            os.environ[key] = value
+        elif isinstance(value, int | float | bool):
+            os.environ[key] = str(value)
+        elif value is None:
+            os.environ[key] = ''
+
+    return sl_app
+
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +88,7 @@ class OI_server:
 
         self.conversation_id = ''
         self.system = platform.system()
-        self.app = FastAPI()
+        self.app = create_app_with_config()
         self.OI_session: LRUCache[str, OpenInterpreter] = LRUCache(maxsize=20, ttl=600, timer=time.time)
         self.OI_session_4_user: LRUCache[str, OpenInterpreter] = LRUCache(maxsize=20, ttl=600, timer=time.time)
         
@@ -64,6 +97,8 @@ class OI_server:
 
         self.OI_session_4_user.on_delete = reset_OI
         self.OI_session_4_user.on_get = lambda key, value, exsits: self.OI_session_4_user.set(key, value) if exsits else None
+
+        
 
 
     def _OI_instance_4_user(self, payload: Dict[str, Any]) -> OpenInterpreter:
@@ -88,7 +123,8 @@ class OI_server:
             new_OI.disable_telemetry = True
             new_OI.llm.model = "gpt-4o"
             if self.system == 'Windows':
-                new_OI.conversation_filename='D:\\code\\open-interpreter\\dev\\conversations\\test.json'
+                new_OI.conversation_history_path = 'D:\\code\\open-interpreter\\dev\\conversations'
+                new_OI.conversation_filename = user_id + '.json'
                 new_OI.system_message = PROMPTS.system_message_win
             else:
                 new_OI.system_message = PROMPTS.system_message_analyse
@@ -116,7 +152,8 @@ class OI_server:
             new_OI.contribute_conversation = False
             new_OI.llm.model = "gpt-4o"
             if self.system == 'Windows':
-                new_OI.conversation_filename='D:\\code\\open-interpreter\\dev\\conversations\\test.json'
+                new_OI.conversation_history_path = 'D:\\code\\open-interpreter\\dev\\conversations'
+                new_OI.conversation_filename = requset.conversation_id + '.json'
                 new_OI.system_message = PROMPTS.system_message_win
             else:
                 new_OI.conversation_filename = requset.conversation_id + '.json'
@@ -175,7 +212,8 @@ class OI_server:
         if not os.path.splitext(file_name)[1]:
             file_name = file_name + '.' + file_extension
         if self.system == 'Windows':
-            base_dir = os.path.join(f"D:\\workspace\\{user_id}", "mnt", "data")
+            # base_dir = os.path.join(f"D:\\workspace\\{user_id}", "mnt", "data")
+            base_dir = os.path.join(f"D:\\workspace\\{user_id}", "workspace")
         elif self.system == 'Darwin':
             base_dir = os.path.join(f"/Users/jiangziyou/workspace/{user_id}", "mnt", "data")
         else:
@@ -202,7 +240,6 @@ class OI_server:
             return parsed_url.path.split('.')[-1]
 
         if upload_file_name is None:
-            from urllib.parse import urlparse
             parsed_url = urlparse(upload_file_url)
             upload_file_name = parsed_url.path.split('/')[-1]
 
@@ -247,7 +284,7 @@ class OI_server:
                 file_info[normalized_path] = os.path.getmtime(normalized_path)
         return file_info
         
-    def _compare_file_info(self, before, after):
+    def _compare_file_info(self, before, after, user_id):
         """Compare two file info dictionaries and return a list of new or modified files."""
         pic_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff'}
         piclist = []
@@ -255,10 +292,13 @@ class OI_server:
 
         for file in after:
             if file not in before or after[file] != before[file]:
+                file_url = FileService.upload_file(file, user_id)
                 if os.path.splitext(file)[1].lower() in pic_extensions:
-                    piclist.append(file)
+                    print(f'piclist: {file}')
+                    piclist.append(file_url)
                 else:
-                    filelist.append(file)
+                    print(f'filelist: {file}')
+                    filelist.append(file_url)
         
         return piclist, filelist
         
@@ -361,9 +401,9 @@ class OI_server:
                 # Get final state of the directory
                 final_file_info = self._get_file_info(cur_work_dir)
                 # Compare file info to get new or modified files
-                piclist, filelist = self._compare_file_info(initial_file_info, final_file_info)
+                piclist, filelist = self._compare_file_info(initial_file_info, final_file_info, user_id)
 
-                return {
+                res = {
                     'code': 200,
                     'msg': 'success',
                     'result': {
@@ -373,6 +413,10 @@ class OI_server:
                         'file_list': filelist
                     }
                 }
+
+                print(f'res: {res}')
+
+                return res
             except Exception as e:
                 return {'code': 500, 'msg': str(e)}
         
@@ -390,6 +434,7 @@ class OI_server:
         
         config = Config(app, host="0.0.0.0", port=8090) 
         server = Server(config)
+        initialize_extensions(app)
         server.run()
 
 server = OI_server()

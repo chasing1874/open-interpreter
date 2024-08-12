@@ -269,7 +269,7 @@ class OI_server:
             base_dir = '/workspace/'
         cur_work_path = os.path.join(base_dir, user_id)
         os.makedirs(cur_work_path, exist_ok=True)
-        chdir_code = f'import os\nos.chdir("{cur_work_path}\nprint(os.getcwd())")'
+        chdir_code = f'import os\nos.chdir("{cur_work_path}")\nprint(os.getcwd())'
         out = OI.computer.run("python", chdir_code)
         print(f'out: {out}')
         return cur_work_path
@@ -377,16 +377,19 @@ class OI_server:
         async def run_code(payload: Dict[str, Any]):
             user_id = payload.get("user_id")
             OI = self._OI_instance_4_user(payload)
-            language, code, upload_file_name, upload_file_url = payload.get("language"), payload.get("code"), payload.get("upload_file_name"), payload.get("upload_file_url")
+            language, code, upload_files = payload.get("language"), payload.get("code"), payload.get("upload_files")
             print(f'user_id: {user_id}, payload: {payload}')
             if not (language and code):
                 return {"error": "Both 'language' and 'code' are required."}, 400
             try:
                 cur_work_dir = self._change_workspace_dir(user_id, OI)
                 
-                if upload_file_url:
-                    self._download_file_from_url(user_id, upload_file_url, upload_file_name)
-                    print(f"upload_file_url: {upload_file_url}")
+                if upload_files and len(upload_files) > 0:
+                    for upload_file in upload_files:
+                        upload_file_url = upload_file.get('url')
+                        upload_file_name = upload_file.get('filename')
+                        print(f"upload_file_url: {upload_file_url}, upload_file_name: {upload_file_name}")
+                        self._download_file_from_url(user_id, upload_file_url, upload_file_name)
 
                 # Get initial state of the directory
                 initial_file_info = self._get_file_info(cur_work_dir)

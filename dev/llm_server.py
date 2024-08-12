@@ -269,7 +269,7 @@ class OI_server:
             base_dir = '/workspace/'
         cur_work_path = os.path.join(base_dir, user_id)
         os.makedirs(cur_work_path, exist_ok=True)
-        chdir_code = f'import os\nos.chdir("{cur_work_path}")'
+        chdir_code = f'import os\nos.chdir("{cur_work_path}\nprint(os.getcwd())")'
         out = OI.computer.run("python", chdir_code)
         print(f'out: {out}')
         return cur_work_path

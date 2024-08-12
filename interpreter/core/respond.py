@@ -181,6 +181,19 @@ def respond(interpreter):
                     except:
                         pass
 
+                # print(code)
+                # print("---")
+                # time.sleep(2)
+
+                if code.strip().endswith("executeexecute"):
+                    code = code.replace("executeexecute", "")
+                    try:
+                        interpreter.messages[-1][
+                            "content"
+                        ] = code  # So the LLM can see it.
+                    except:
+                        pass
+
                 if code.replace("\n", "").replace(" ", "").startswith('{"language":'):
                     try:
                         code_dict = json.loads(code)
@@ -246,6 +259,16 @@ def respond(interpreter):
                         continue
                     else:
                         break
+
+                # Is there any code at all?
+                if code.strip() == "":
+                    yield {
+                        "role": "computer",
+                        "type": "console",
+                        "format": "output",
+                        "content": "Code block was empty. Please try again, be sure to write code before executing.",
+                    }
+                    continue
 
                 # Yield a message, such that the user can stop code execution if they want to
                 try:

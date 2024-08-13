@@ -223,7 +223,9 @@ class OI_server:
         
     
     def _download_file_from_url(self, user_id, upload_file_url, upload_file_name=None):
-        def get_file_extension_from_url(url):
+        def get_file_extension_from_url(url: str):
+            if url.startswith('/file'):
+                url = 'http://117.72.76.102' + url
             response = requests.head(url)
             print(f"response.headers: {response.headers}")
             if 'Content-Disposition' in response.headers:

@@ -143,6 +143,10 @@ class AsyncInterpreter(OpenInterpreter):
                 self.output_queue.sync_q.put(chunk)
 
             self.output_queue.sync_q.put(complete_message)
+
+            if self.print or self.debug:
+                print("Server response complete.")
+
         except Exception as e:
             error = traceback.format_exc() + "\n" + str(e)
             error_message = {
@@ -441,11 +445,16 @@ def create_router(async_interpreter):
                             "type": "error",
                             "content": traceback.format_exc() + "\n" + str(e),
                         }
-                        await websocket.send_text(json.dumps(error_message))
-                        await websocket.send_text(json.dumps(complete_message))
-                        print("\n\n--- SENT ERROR: ---\n\n")
+                        if websocket.client_state == WebSocketState.CONNECTED:
+                            await websocket.send_text(json.dumps(error_message))
+                            await websocket.send_text(json.dumps(complete_message))
+                            print("\n\n--- SENT ERROR: ---\n\n")
+                        else:
+                            print(
+                                "\n\n--- ERROR (not sent due to disconnected state): ---\n\n"
+                            )
                         print(error)
-                        print("\n\n--- (ERROR ABOVE WAS SENT) ---\n\n")
+                        print("\n\n--- (ERROR ABOVE) ---\n\n")
 
             async def send_output():
                 while True:
@@ -500,6 +509,8 @@ def create_router(async_interpreter):
                         break
 
                     try:
+                        # print("sending:", output)
+
                         if isinstance(output, bytes):
                             await websocket.send_bytes(output)
                         else:

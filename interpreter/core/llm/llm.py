@@ -6,6 +6,8 @@ import sys
 import litellm
 
 litellm.suppress_debug_info = True
+litellm.REPEATED_STREAMING_CHUNK_LIMIT = 99999999
+
 import json
 import subprocess
 import time
@@ -286,7 +288,6 @@ Continuing...
                     print(message)
                 print("\n")
             print("\n\n\n")
-            time.sleep(5)
 
         if self.supports_functions:
             # yield from run_function_calling_llm(self, params)

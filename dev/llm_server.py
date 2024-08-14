@@ -215,17 +215,15 @@ class OI_server:
             # base_dir = os.path.join(f"D:\\workspace\\{user_id}", "mnt", "data")
             base_dir = os.path.join(f"D:\\workspace\\{user_id}", "workspace")
         elif self.system == 'Darwin':
-            base_dir = os.path.join(f"/Users/jiangziyou/workspace/{user_id}", "mnt", "data")
+            base_dir = os.path.join(f"/Users/jiangziyou/workspace/{user_id}", "workspace")
         else:
-            base_dir = os.path.join(f"/workspace/{user_id}", "mnt", "data")
+            base_dir = os.path.join(f"/workspace/{user_id}", "workspace")
         os.makedirs(base_dir, exist_ok=True)
         return os.path.join(base_dir, file_name)
         
     
     def _download_file_from_url(self, user_id, upload_file_url, upload_file_name=None):
         def get_file_extension_from_url(url: str):
-            if url.startswith('/file'):
-                url = 'http://117.72.76.102' + url
             response = requests.head(url)
             print(f"response.headers: {response.headers}")
             if 'Content-Disposition' in response.headers:
@@ -240,6 +238,9 @@ class OI_server:
                     return extension.lstrip('.')
             parsed_url = urlparse(url)
             return parsed_url.path.split('.')[-1]
+
+        if not upload_file_url.startswith('http'):
+            upload_file_url = 'http://localhost' + upload_file_url
 
         if upload_file_name is None:
             parsed_url = urlparse(upload_file_url)

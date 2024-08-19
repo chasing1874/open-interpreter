@@ -1,17 +1,16 @@
 """Abstract interface for file storage implementations."""
 from abc import ABC, abstractmethod
 from collections.abc import Generator
-
-from shuling_app import ShulingApp
+from typing import Any
 
 
 class BaseStorage(ABC):
     """Interface for file storage.
     """
-    app = None
+    config = None
 
-    def __init__(self, app: ShulingApp):
-        self.app = app
+    def __init__(self, config: dict[str, Any]):
+        self.config = config
 
     @abstractmethod
     def save(self, filename, data):

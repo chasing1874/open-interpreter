@@ -1,6 +1,6 @@
 import uuid
-from extensions.ext_storage import storage
-from configs import shuling_config
+from dev.extensions.ext_storage import storage
+from dev.configs import shuling_config
 
 class FileService:
 

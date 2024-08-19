@@ -1,20 +1,20 @@
 import os
 import shutil
 from collections.abc import Generator
+from typing import Any
 
-from extensions.storage.base_storage import BaseStorage
-from shuling_app import ShulingApp
+from dev.extensions.storage.base_storage import BaseStorage
 
 class LocalStorage(BaseStorage):
     """Implementation for local storage.
     """
 
-    def __init__(self, app: ShulingApp):
-        super().__init__(app)
-        folder = self.app.config.get('STORAGE_LOCAL_PATH')
+    def __init__(self, config: dict[str, Any]):
+        super().__init__(config)
+        folder = config.get('STORAGE_LOCAL_PATH')
         print(f'STORAGE_LOCAL_PATH: {folder}')
         if not os.path.isabs(folder):
-            folder = os.path.join(app.root_path, folder)
+            folder = os.path.join(os.getcwd(), folder)
         self.folder = folder
 
     def save(self, filename, data):

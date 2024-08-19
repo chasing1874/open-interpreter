@@ -1,20 +1,21 @@
 from collections.abc import Generator
 from contextlib import closing
+from typing import Any
 
 import oss2 as aliyun_s3
 
-from extensions.storage.base_storage import BaseStorage
-from shuling_app import ShulingApp
+from dev.extensions.storage.base_storage import BaseStorage
+
 
 
 class AliyunStorage(BaseStorage):
     """Implementation for aliyun storage.
     """
 
-    def __init__(self, app: ShulingApp):
-        super().__init__(app)
+    def __init__(self, config: dict[str, Any]):
+        super().__init__(config)
 
-        app_config = self.app.config
+        app_config = config
         print(f'app_config: {app_config}')
         self.bucket_name = app_config.get('ALIYUN_OSS_BUCKET_NAME')
         oss_auth_method = aliyun_s3.Auth

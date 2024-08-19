@@ -1,25 +1,22 @@
 from collections.abc import Generator
-from typing import Union
+from typing import Any, Union
 
-
-
-from extensions.storage.aliyun_storage import AliyunStorage
-from extensions.storage.local_storage import LocalStorage
-from shuling_app import ShulingApp
+from dev.extensions.storage.aliyun_storage import AliyunStorage
+from dev.extensions.storage.local_storage import LocalStorage
 
 
 class Storage:
     def __init__(self):
         self.storage_runner = None
 
-    def init_app(self, app: ShulingApp):
-        storage_type = app.config.get('STORAGE_TYPE')
+    def init_app(self, config: dict[str, Any]):
+        storage_type = config.get('STORAGE_TYPE')
         if storage_type == 'aliyun-oss':
             self.storage_runner = AliyunStorage(
-                app=app
+                config=config
             )     
         else:
-            self.storage_runner = LocalStorage(app=app)
+            self.storage_runner = LocalStorage(config=config)
 
     def save(self, filename, data):
         self.storage_runner.save(filename, data)
@@ -49,5 +46,5 @@ class Storage:
 storage = Storage()
 
 
-def init_app(app: ShulingApp):
-    storage.init_app(app)
+def init_app(config: dict[str, Any]):
+    storage.init_app(config)

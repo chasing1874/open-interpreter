@@ -206,20 +206,20 @@ import matplotlib.pyplot as plt
                                 "content": data["image/jpeg"],
                             }
                         )
-                    elif "text/html" in data:
-                        message_queue.put(
-                            {
-                                "type": "code",
-                                "format": "html",
-                                "content": data["text/html"],
-                            }
-                        )
                     elif "text/plain" in data:
                         message_queue.put(
                             {
                                 "type": "console",
                                 "format": "output",
                                 "content": data["text/plain"],
+                            }
+                        )
+                    elif "text/html" in data:
+                        message_queue.put(
+                            {
+                                "type": "code",
+                                "format": "html",
+                                "content": data["text/html"],
                             }
                         )
                     elif "application/javascript" in data:

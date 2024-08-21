@@ -9,6 +9,7 @@ litellm.suppress_debug_info = True
 litellm.REPEATED_STREAMING_CHUNK_LIMIT = 99999999
 
 import json
+import logging
 import subprocess
 import time
 import uuid
@@ -25,6 +26,17 @@ from .run_text_llm import run_text_llm
 from .run_tool_calling_llm import run_tool_calling_llm
 from .utils.convert_to_openai_messages import convert_to_openai_messages
 
+# Create or get the logger
+logger = logging.getLogger("LiteLLM")
+
+
+class SuppressDebugFilter(logging.Filter):
+    def filter(self, record):
+        # Suppress only the specific message containing the keywords
+        if "cost map" in record.getMessage():
+            return False  # Suppress this log message
+        return True  # Allow all other messages
+
 
 class Llm:
     """
@@ -32,6 +44,9 @@ class Llm:
     """
 
     def __init__(self, interpreter):
+        # Add the filter to the logger
+        logger.addFilter(SuppressDebugFilter())
+
         # Store a reference to parent interpreter
         self.interpreter = interpreter
 
@@ -251,6 +266,12 @@ Continuing...
 
             pass
 
+        # If there should be a system message, there should be a system message!
+        # Empty system messages appear to be deleted :(
+        if system_message == "":
+            if messages[0]["role"] != "system":
+                messages = [{"role": "system", "content": system_message}] + messages
+
         ## Start forming the request
 
         params = {
@@ -311,6 +332,9 @@ Continuing...
         if self._is_loaded:
             return
 
+        if self.model.startswith("ollama/") and not ":" in self.model:
+            self.model = self.model + ":latest"
+
         self._is_loaded = True
 
         if self.model.startswith("ollama/"):
@@ -323,7 +347,7 @@ Continuing...
                 if response.ok:
                     data = response.json()
                     names = [
-                        model["name"].replace(":latest", "")
+                        model["name"]
                         for model in data["models"]
                         if "name" in model and model["name"]
                     ]
@@ -358,6 +382,7 @@ Continuing...
                     self.max_tokens = int(self.context_window * 0.2)
 
             # Send a ping, which will actually load the model
+            model_name = model_name.replace(":latest", "")
             print(f"Loading {model_name}...\n")
 
             old_max_tokens = self.max_tokens
@@ -397,6 +422,8 @@ def fixed_litellm_completions(**params):
         )
     else:
         litellm.drop_params = True
+
+    params["model"] = params["model"].replace(":latest", "")
 
     # Run completion
     attempts = 4

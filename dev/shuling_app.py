@@ -14,6 +14,7 @@ from fastapi import FastAPI
 from interpreter.core.core import OpenInterpreter
 from interpreter.terminal_interface.utils.local_storage_path import get_storage_path
 from dev.utils.prompts import PROMPTS
+from dev.profiles import database
 
 
 class ExcutionResult(BaseModel):
@@ -90,6 +91,9 @@ class ShulingApp(FastAPI):
                 new_OI.system_message = PROMPTS.system_message_win
             else:
                 new_OI.system_message = PROMPTS.system_message_analyse
+
+            new_OI.cur_work_dir = self._change_workspace_dir(user_id, new_OI)
+            print(f'cur_work_dir: {new_OI.cur_work_dir}')
             # save to session
             self.OI_session_4_user.set(user_id, new_OI)
         return self.OI_session_4_user.get(user_id)
@@ -135,6 +139,9 @@ class ShulingApp(FastAPI):
                 with open(cur_conversation_path, "r") as f:
                     messages = load(f)
                     new_OI.messages = messages
+
+            new_OI.cur_work_dir = self._change_workspace_dir(requset.conversation_id, new_OI)
+            print(f'cur_work_dir: {new_OI.cur_work_dir}')
 
             # save to session
             self.OI_session.set(requset.conversation_id, new_OI)
@@ -223,7 +230,7 @@ class ShulingApp(FastAPI):
         else:
             raise Exception(f"Failed to download file. Status code: {response.status_code}")
         
-    def _change_workspace_dir(self, user_id, OI: OpenInterpreter):
+    def _change_workspace_dir(self, uniq_id, OI: OpenInterpreter):
         base_dir = ''
         if self.system == 'Windows':
             base_dir = 'D:/workspace/'
@@ -231,24 +238,24 @@ class ShulingApp(FastAPI):
             base_dir = '/Users/jiangziyou/workspace/'
         else:
             base_dir = '/workspace/'
-        cur_work_path = os.path.join(base_dir, user_id)
+        cur_work_path = os.path.join(base_dir, uniq_id)
         os.makedirs(cur_work_path, exist_ok=True)
         chdir_code = f'import os\nos.chdir("{cur_work_path}")\nprint(os.getcwd())'
         out = OI.computer.run("python", chdir_code)
         print(f'out: {out}')
         return cur_work_path
     
-    def _get_file_info(self, directory):
+    def _get_file_info(self, OI: OpenInterpreter):
         """Returns a dictionary with filenames and their modification times."""
         file_info = {}
-        for root, dirs, files in os.walk(directory):
+        for root, dirs, files in os.walk(OI.cur_work_dir):
             for file in files:
                 filepath = os.path.join(root, file)
                 normalized_path = os.path.normpath(filepath)
                 file_info[normalized_path] = os.path.getmtime(normalized_path)
         return file_info
         
-    def _compare_file_info(self, before, after, user_id):
+    def _compare_file_info(self, before, after, uniq_id):
         """Compare two file info dictionaries and return a list of new or modified files."""
         pic_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff'}
         piclist = []
@@ -256,7 +263,7 @@ class ShulingApp(FastAPI):
 
         for file in after:
             if file not in before or after[file] != before[file]:
-                file_url = FileService.upload_file(file, user_id)
+                file_url = FileService.upload_file(file, uniq_id)
                 if os.path.splitext(file)[1].lower() in pic_extensions:
                     print(f'piclist: {file}')
                     piclist.append(file_url)

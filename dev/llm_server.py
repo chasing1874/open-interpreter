@@ -119,18 +119,26 @@ async def stream_chat_endpoint(item: RequestModel):
     print(join_prompt)
 
     OI = app._OI_instance(item)
+    initial_file_info = app._get_file_info(OI)
+    print(f"initial_file_info: {initial_file_info}")
     if item.system_prompt:
         OI.system_message = app._get_default_system_message() + item.system_prompt
         print(f'cur system_message: ----------------------------↓↓↓------------------------ \n  {OI.system_message}')
 
-    def event_stream():
+    def event_stream(initial_file_info):
         for chunk in OI.chat(join_prompt, display=False, stream=True):
             chunk_json = dumps(chunk)
             print(f'chunk: {chunk}')
             # print(f'chunk_json: {chunk_json}')
             yield f"data: {chunk_json}\r\n"
+        
+        final_file_info = app._get_file_info(OI)
+        print(f"final_file_info: {final_file_info}")
+        piclist, filelist = app._compare_file_info(initial_file_info, final_file_info, item.conversation_id)
+        print(f'piclist: {piclist}, filelist: {filelist}')
+        # yield f'data: {final_file_info}\r\n'
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(event_stream(initial_file_info), media_type="text/event-stream")
 
 @app.get("/history")
 async def history_endpoint(conversation_id: str):
@@ -156,8 +164,6 @@ async def run_code(payload: Dict[str, Any]):
     if not (language and code):
         return {"error": "Both 'language' and 'code' are required."}, 400
     try:
-        cur_work_dir = app._change_workspace_dir(user_id, OI)
-        
         if upload_files and len(upload_files) > 0:
             for upload_file in upload_files:
                 upload_file_url = upload_file.get('url')
@@ -166,7 +172,7 @@ async def run_code(payload: Dict[str, Any]):
                 app._download_file_from_url(user_id, upload_file_url, upload_file_name)
 
         # Get initial state of the directory
-        initial_file_info = app._get_file_info(cur_work_dir)
+        initial_file_info = app._get_file_info(OI)
 
         # Run the code
         print(f"Running {language}:", code)
@@ -176,7 +182,7 @@ async def run_code(payload: Dict[str, Any]):
         print("Output:", output)
 
         # Get final state of the directory
-        final_file_info = app._get_file_info(cur_work_dir)
+        final_file_info = app._get_file_info(OI)
         # Compare file info to get new or modified files
         piclist, filelist = app._compare_file_info(initial_file_info, final_file_info, user_id)
 

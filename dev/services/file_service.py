@@ -1,3 +1,4 @@
+import os
 import uuid
 from dev.extensions.ext_storage import storage
 from dev.configs import shuling_config
@@ -9,7 +10,8 @@ class FileService:
     @staticmethod
     def upload_file(file_path, uniq_id):
         extension = file_path.split('.')[-1]
-        file_uuid = str(uuid.uuid4())
+        file_name = os.path.basename(file_path)
+        file_uuid = file_name + '-' + str(uuid.uuid4())
         file_key = 'upload_files/' + uniq_id + '/' + file_uuid + '.' + extension
         with open(file_path, 'rb') as f:
             file_content = f.read()

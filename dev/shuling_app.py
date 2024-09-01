@@ -263,12 +263,13 @@ class ShulingApp(FastAPI):
 
         for file in after:
             if file not in before or after[file] != before[file]:
+                file_name = os.path.basename(file)
                 file_url = FileService.upload_file(file, uniq_id)
                 if os.path.splitext(file)[1].lower() in pic_extensions:
                     print(f'piclist: {file}')
-                    piclist.append(file_url)
+                    piclist.append({'file_name': file_name, 'file_url': file_url})
                 else:
                     print(f'filelist: {file}')
-                    filelist.append(file_url)
+                    filelist.append({'file_name': file_name, 'file_url': file_url})
         
         return piclist, filelist

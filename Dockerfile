@@ -48,8 +48,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends gcc g++ libc-dev libffi-dev libgmp-dev libmpfr-dev libmpc-dev
 
 # Install Python dependencies
-COPY dev/pyproject.toml dev/poetry.lock ./
-RUN poetry install --extras shuling --sync --no-cache --no-root
+COPY pyproject.toml poetry.lock ./
+RUN poetry install --extras server --sync --no-cache --no-root
 
 # production stage
 FROM base AS production
@@ -73,7 +73,7 @@ ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 # Copy source code
 COPY . /app/server/
 
-COPY dev/entrypoint.sh /entrypoint.sh
+COPY entrypoint.sh /entrypoint.sh
 # Copy entrypoint
 RUN chmod +x /entrypoint.sh
 

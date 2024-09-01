@@ -133,10 +133,16 @@ async def stream_chat_endpoint(item: RequestModel):
             yield f"data: {chunk_json}\r\n"
         
         final_file_info = app._get_file_info(OI)
-        print(f"final_file_info: {final_file_info}")
         piclist, filelist = app._compare_file_info(initial_file_info, final_file_info, item.conversation_id)
-        print(f'piclist: {piclist}, filelist: {filelist}')
-        # yield f'data: {final_file_info}\r\n'
+        file_lcm = {
+            'role' : 'assistant',
+            'type' : 'file',
+            'content': {
+                'pic_list': piclist,
+                'file_list': filelist
+            }
+        }
+        yield f'data: {dumps(file_lcm)}\r\n'
 
     return StreamingResponse(event_stream(initial_file_info), media_type="text/event-stream")
 

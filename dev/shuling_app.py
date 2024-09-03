@@ -36,7 +36,7 @@ class RequestModel(BaseModel):
     stop: Optional[list[str]]
     user: str
     model_name: str
-    api_key: str
+    api_key: Optional[str]
     conversation_id: str
     model_parameters: dict[str, Any]
 
@@ -61,7 +61,21 @@ class ShulingApp(FastAPI):
         self.OI_session_4_user.on_delete = reset_OI
         self.OI_session_4_user.on_get = lambda key, value, exsits: self.OI_session_4_user.set(key, value) if exsits else None
 
-        
+    def _init_OI_model(self, OI: OpenInterpreter, model_name: str):
+        # openai-compatible model: zhipu
+        if model_name.startswith('zhipu/'):
+            model_name = model_name.split('/')[1]
+            OI.llm.model = 'openai/' + model_name
+            OI.llm.api_key = self.config.get('ZHIPU_API_KEY')
+            OI.llm.api_base = self.config.get('ZHIPU_API_BASE')
+        # openrouter model
+        elif model_name.startswith('openrouter/'):
+            OI.llm.model = model_name
+            OI.llm.api_key = self.config.get('OPENROUTER_API_KEY')
+        # openai model
+        else:
+            OI.llm.model = model_name
+            OI.llm.api_key = self.config.get('OPENAI_API_KEY')
 
 
     def _OI_instance_4_user(self, payload: Dict[str, Any]) -> OpenInterpreter:
@@ -84,7 +98,7 @@ class ShulingApp(FastAPI):
             new_OI.llm.supports_vision=True
             new_OI.computer.emit_images=True
             new_OI.disable_telemetry = True
-            new_OI.llm.model = "gpt-4o"
+
             if self.system == 'Windows':
                 new_OI.conversation_history_path = 'D:\\code\\open-interpreter\\dev\\conversations'
                 new_OI.conversation_filename = user_id + '.json'
@@ -126,8 +140,7 @@ class ShulingApp(FastAPI):
                 new_OI.system_message = PROMPTS.system_message_analyse
 
             # custom parameters
-            new_OI.llm.model = requset.model_name
-            new_OI.llm.api_key = requset.api_key
+            self._init_OI_model(new_OI, requset.model_name)
             for key, value in requset.model_parameters.items():
                 print(f"model_parameters: key: {key}, value: {value}")
                 setattr(new_OI.llm, key, value)

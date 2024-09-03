@@ -1,6 +1,12 @@
 from pydantic_settings import SettingsConfigDict, BaseSettings
 
 class ShulingConfig(BaseSettings):
+
+    OPENAI_API_KEY: str
+    OPENROUTER_API_KEY: str
+    ZHIPU_API_KEY: str
+    ZHIPU_API_BASE: str
+
     STORAGE_TYPE: str
     STORAGE_LOCAL_PATH: str
 

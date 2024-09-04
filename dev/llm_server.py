@@ -99,17 +99,20 @@ async def chat_endpoint(item: RequestModel):
 
 @app.post("/stream_chat")
 async def stream_chat_endpoint(item: RequestModel):
-    print(f"item.prompt: {item.prompt}")
+    print(f"requst: {item}")
+    
+    OI = app._OI_instance(item)
+    
 
     file_paths = ''
     file_cnt = len(item.files)
     for file in item.files:
         src_path = app._get_src_path(file)
-        dest_path = app._get_dest_path(file)
+        dest_path = app._get_dest_path(file, item.conversation_id)
         print('src: ', src_path)
         print('dest: ', dest_path)
         shutil.copyfile(src_path, dest_path)
-        file_paths += f'{dest_path} \t'
+        file_paths += f'workspace/{file.get("sheet_name")} \t'
     print(f"file_paths: {file_paths}")
 
     if file_cnt == 0:
@@ -118,12 +121,13 @@ async def stream_chat_endpoint(item: RequestModel):
         join_prompt = f'我上传了{file_cnt}个文件，文件地址为: {file_paths}, 请按照下面的要求进行分析: \n{item.prompt}'
     print(join_prompt)
 
-    OI = app._OI_instance(item)
-    initial_file_info = app._get_file_info(OI)
-    print(f"initial_file_info: {initial_file_info}")
+    
     if item.system_prompt:
         OI.system_message = app._get_default_system_message() + item.system_prompt
         print(f'cur system_message: ----------------------------↓↓↓------------------------ \n  {OI.system_message}')
+
+    initial_file_info = app._get_file_info(OI)
+    print(f"initial_file_info: {initial_file_info}")
 
     def event_stream(initial_file_info):
         for chunk in OI.chat(join_prompt, display=False, stream=True):

@@ -177,15 +177,15 @@ class ShulingApp(FastAPI):
             storage_path = '/root/code/dify/docker/volumes/app/storage/'
             return os.path.join(storage_path, file['file_path'])
     
-    def _get_dest_path(self, file: dict):
+    def _get_dest_path(self, file: dict, conversation_id: str):
         if self.system == 'Windows':
-            tmp_path = 'D:\\mnt\\data\\'
+            tmp_path = f'D:\\workspace\\{conversation_id}\\workspace\\'
             return os.path.join(tmp_path, file['sheet_name'].replace('/', '\\'))
         elif self.system == 'Darwin':
-            tmp_path = '/Users/jiangziyou/mnt/data/'
+            tmp_path = f'/Users/jiangziyou/workspace/{conversation_id}/workspace/'
             return os.path.join(tmp_path, file['sheet_name'])
         else:
-            tmp_path = '/mnt/data/'
+            tmp_path = f'/workspace/{conversation_id}/workspace/'
             return os.path.join(tmp_path, file['sheet_name'])
     
 
@@ -252,7 +252,8 @@ class ShulingApp(FastAPI):
         else:
             base_dir = '/workspace/'
         cur_work_path = os.path.join(base_dir, uniq_id)
-        os.makedirs(cur_work_path, exist_ok=True)
+        workspace_path = os.path.join(cur_work_path, 'workspace')
+        os.makedirs(workspace_path, exist_ok=True)
         chdir_code = f'import os\nos.chdir("{cur_work_path}")\nprint(os.getcwd())'
         out = OI.computer.run("python", chdir_code)
         print(f'out: {out}')

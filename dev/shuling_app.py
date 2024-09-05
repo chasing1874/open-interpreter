@@ -68,8 +68,11 @@ class ShulingApp(FastAPI):
             OI.llm.model = 'openai/' + model_name
             OI.llm.api_key = self.config.get('ZHIPU_API_KEY')
             OI.llm.api_base = self.config.get('ZHIPU_API_BASE')
+            OI.llm.supports_functions = True
         # openrouter model
         elif model_name.startswith('openrouter/'):
+            if model_name == 'openrouter/deepseek/deepseek-coder':
+                OI.llm.supports_functions = False
             OI.llm.model = model_name
             OI.llm.api_key = self.config.get('OPENROUTER_API_KEY')
         # openai model
@@ -141,6 +144,7 @@ class ShulingApp(FastAPI):
 
             # custom parameters
             self._init_OI_model(new_OI, requset.model_name)
+            # new_OI.llm.supports_functions=True
             for key, value in requset.model_parameters.items():
                 print(f"model_parameters: key: {key}, value: {value}")
                 setattr(new_OI.llm, key, value)

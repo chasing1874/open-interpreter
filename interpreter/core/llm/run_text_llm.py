@@ -15,6 +15,8 @@ def run_text_llm(llm, params):
 
     inside_code_block = False
     accumulated_block = ""
+    last_accumulated_block = ""
+    end_of_code_block = False
     language = None
 
     for chunk in llm.completions(**params):
@@ -33,6 +35,8 @@ def run_text_llm(llm, params):
         accumulated_block += content
 
         if accumulated_block.endswith("`"):
+            if inside_code_block:
+                last_accumulated_block += content
             # We might be writing "```" one token at a time.
             continue
 
@@ -43,7 +47,8 @@ def run_text_llm(llm, params):
 
         # Did we just exit a code block?
         if inside_code_block and "```" in accumulated_block:
-            return
+            last_accumulated_block += content
+            end_of_code_block = True
 
         # If we're in a code block,
         if inside_code_block:
@@ -61,6 +66,15 @@ def run_text_llm(llm, params):
                 else:
                     # Removes hallucinations containing spaces or non letters.
                     language = "".join(char for char in language if char.isalpha())
+
+            if end_of_code_block:
+                content = last_accumulated_block.split("```")[0]
+                yield {
+                    "type": "code",
+                    "format": language,
+                    "content": content,
+                }
+                return
 
             # If we do have a `language`, send it out
             if language:

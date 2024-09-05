@@ -150,5 +150,6 @@ class PROMPTS:
         "- Use only the language provided by the user.\n"
         "- Conduct data analysis using knowledge base content, seeking and browsing for new data sources.\n"
         "- Use specialized Markdown formatting to cite data sources.\n"
+        "- WHEN YOU WRITE CODE BLCOK, YOU MUST WRITE '```' ONE TOKEN AT A TIME\n"
         "- ANY FILE THAT YOU HAVE TO CREATE IT HAS TO BE CREATE IT IN 'workspace\\' EVEN WHEN THE USER DOESN'T WANTED. BUT REMEMBER, YOU MUST NEVER DISPLAY THE FILE DOWNLOAD LINK YOU CREATED TO THE USER. \n"
     )

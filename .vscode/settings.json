@@ -1,5 +1,8 @@
 {
     "python.analysis.extraPaths": [
         "./dev"
-    ]
+    ],
+    "marscode.codeCompletionPro": {
+        "enableCodeCompletionPro": true
+    }
 }

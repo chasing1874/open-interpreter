@@ -84,6 +84,8 @@ def respond(interpreter):
         ):  # If it is, we should run the code (we do below)
             try:
                 for chunk in interpreter.llm.run(messages_for_llm):
+                    if chunk.get("format", "").startswith("'") or chunk.get("format", "").startswith('"'):
+                        chunk["format"] = chunk.get("format", "").strip("'").strip('"')
                     yield {"role": "assistant", **chunk}
 
             except litellm.exceptions.BudgetExceededError:
@@ -225,6 +227,18 @@ def respond(interpreter):
                             ] = language  # So the LLM can see it.
                     except:
                         pass
+
+                if language.startswith("'"):
+                    language = language.replace("'", "")
+                    interpreter.messages[-1][
+                        "format"
+                    ] = language
+
+                if language.startswith('"'):
+                    language = language.replace('"', "")
+                    interpreter.messages[-1][
+                        "format"
+                    ] = language
 
                 if (
                     language == "text"
